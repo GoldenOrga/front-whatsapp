@@ -78,7 +78,7 @@
                 <v-list-item-content>
                   <v-list-item-title class="d-flex align-center justify-space-between">
                     <div class="d-flex align-center">
-                      <span>{{ c.name || 'Conversation' }}</span>
+                      <span>{{ displayName(c) }}</span>
                       <v-chip
                         v-if="c.isGroup"
                         size="x-small"
@@ -95,8 +95,10 @@
                     {{ c.lastMessage?.content || 'Aucun message' }}
                   </v-list-item-subtitle>
                   <div class="status-row">
-                    <span class="status-dot" :class="{ online: c.online }"></span>
-                    <span class="status-text">{{ c.online ? 'En ligne' : 'Hors ligne' }}</span>
+                    <span class="status-dot" :class="{ online: isConversationOnline(c) }"></span>
+                    <span class="status-text">
+                      {{ isConversationOnline(c) ? 'En ligne' : 'Hors ligne' }}
+                    </span>
                   </div>
                 </v-list-item-content>
 
@@ -134,8 +136,12 @@
           <v-card-title class="chat-header">
             <v-avatar size="40">{{ selected ? avatarInitials(selected) : 'U' }}</v-avatar>
             <div class="ml-3">
-              <div class="title">{{ selected ? selected.name : 'Sélectionnez une discussion' }}</div>
-              <div class="subtitle">{{ selected ? (selected.isGroup ? 'Groupe' : 'Privé') : '' }}</div>
+              <div class="title">
+                {{ selected ? displayName(selected) : 'Sélectionnez une discussion' }}
+              </div>
+              <div class="subtitle">
+                {{ selected ? (selected.isGroup ? 'Groupe' : 'Privé') : '' }}
+              </div>
             </div>
             <v-spacer></v-spacer>
             <div class="d-flex align-center">
@@ -177,13 +183,13 @@
 
             <div v-else class="messages">
               <div
-                v-for="m in selected.messages || []"
-                :key="m._id || m.id"
-                :class="['message-row', m.me ? 'message-me' : 'message-other']"
+                v-for="(m, idx) in selected.messages || []"
+                :key="m._id || m.id || idx"
+                :class="['message-row', isMine(m) ? 'message-me' : 'message-other']"
               >
                 <div class="message-bubble">
-                  <div class="message-text">{{ m.content || m.text }}</div>
-                  <div class="message-time">{{ formatTime(m.createdAt || m.time) }}</div>
+                  <div class="message-text">{{ m.content }}</div>
+                  <div class="message-time">{{ formatTime(m.createdAt) }}</div>
                 </div>
               </div>
             </div>
@@ -209,6 +215,7 @@
       </v-col>
     </v-row>
 
+    <!-- Nouvelle discussion -->
     <v-dialog v-model="showNewDialog" max-width="520">
       <v-card>
         <v-card-title>Nouvelle discussion</v-card-title>
@@ -280,8 +287,11 @@ import { useSocket } from '../composables/useSocket'
 
 const router = useRouter()
 const auth = useAuthStore()
+const myId = computed(() => auth.user?._id || auth.user?.id)
 const convoStore = useConversationsStore()
 const { socket, connect, disconnect } = useSocket(auth.accessToken?.value || auth.accessToken)
+
+
 const fallbackAvatar = 'https://api.dicebear.com/6.x/initials/svg?seed=default'
 
 const search = ref('')
@@ -310,11 +320,19 @@ const isSocketReady = ref(false)
 
 const filteredList = computed(() => convoStore.filtered(search.value, filter.value))
 
-function selectChat(c) {
+async function selectChat(c) {
+  if (!c) return
+
   selected.value = c
   convoStore.markRead(c._id)
   emitJoin(c._id)
   emitMarkRead(c._id)
+
+  const token = auth.accessToken?.value || auth.accessToken
+  if (token && (!c.messages || !c.messages.length)) {
+    await convoStore.fetchMessages(c._id, token)
+  }
+
   nextTick(() => scrollToBottom())
 }
 
@@ -328,32 +346,109 @@ function avatarInitials(c) {
     .toUpperCase()
 }
 
+function displayName(c) {
+  if (!c) return 'Conversation'
+  if (c.name) return c.name
+  if (Array.isArray(c.participants)) {
+    const others = c.participants.filter(p => p._id !== auth.user?._id)
+    if (others.length) return others.map(o => o.name || 'Utilisateur').join(', ')
+  }
+  return 'Conversation'
+}
+
 function avatarUrl(c) {
-  if (c.avatar) return c.avatar
-  const firstUser = Array.isArray(c.participants) ? c.participants[0] : null
+  if (c?.avatar) return c.avatar
+  const firstUser = Array.isArray(c?.participants)
+    ? c.participants.find(p => p._id !== auth.user?._id) || c.participants[0]
+    : null
   return firstUser?.avatar || fallbackAvatar
 }
 
-function sendMessage() {
+function isConversationOnline(c) {
+  if (!c || !Array.isArray(c.participants)) return false
+  return c.participants
+    .filter(p => p._id !== auth.user?._id)
+    .some(p => p.isOnline)
+}
+
+/**
+ * ULTRA SIMPLE :
+ *  - mes messages : sender._id === auth.user._id => côté droit (vert)
+ *  - les autres : côté gauche (gris)
+ */
+function isMine(m) {
+  if (!m || !myId.value) return false
+
+  const senderId =
+    (m.sender && (m.sender._id || m.sender.id)) || m.sender
+
+  return String(senderId) === String(myId.value)
+}
+
+async function sendMessage() {
   if (!selected.value || !newMessage.value.trim()) return
+
   const content = newMessage.value.trim()
-  const msg = {
-    _id: Date.now().toString(),
+  const tempId = `tmp-${Date.now()}`
+
+  const tempMsg = {
+    _id: tempId,
     content,
-    time: Date.now(),
-    me: true,
-    conversationId: selected.value._id,
+    createdAt: new Date().toISOString(),
+    status: 'pending',
+    // POINT IMPORTANT : on met un sender avec _id = myId
+    sender: {
+      _id: myId.value,
+      name: auth.user?.name,
+      avatar: auth.user?.avatar,
+    },
+    conversation: selected.value._id,
   }
+
   selected.value.messages = selected.value.messages || []
-  selected.value.messages.push(msg)
-  selected.value.lastMessage = { content: msg.content }
+  selected.value.messages.push(tempMsg)
+  selected.value.lastMessage = {
+    content: tempMsg.content,
+    createdAt: tempMsg.createdAt,
+  }
   newMessage.value = ''
   nextTick(() => scrollToBottom())
 
-  if (socket.value) {
-    socket.value.emit('send-message', { conversationId: selected.value._id, content }, ack => {
-      if (ack?.messageId) msg._id = ack.messageId
-    })
+  const token = auth.accessToken?.value || auth.accessToken
+  const canUseSocket = socket.value && socket.value.connected
+
+  const sendViaHttp = async () => {
+    if (!token) return
+    try {
+      const res = await api.post(
+        '/messages',
+        { conversation_id: selected.value._id, content },
+        token
+      )
+      if (res) {
+        // On remplace le message temporaire par le vrai du back
+        const idx = selected.value.messages.findIndex(m => m._id === tempId)
+        if (idx !== -1) {
+          selected.value.messages[idx] = res
+        }
+      }
+    } catch (e) {
+      tempMsg.status = 'error'
+    }
+  }
+
+  if (canUseSocket) {
+    socket.value.emit(
+      'send-message',
+      { conversationId: selected.value._id, content },
+      ack => {
+        if (ack?.messageId) {
+          tempMsg._id = ack.messageId
+        }
+      }
+    )
+  } else {
+    await sendViaHttp()
   }
 }
 
@@ -402,6 +497,7 @@ async function refresh() {
   const token = auth.accessToken?.value || auth.accessToken
   if (!token) return
   await convoStore.fetchConversations(token)
+  joinAllConversations()
   if (!selected.value && convoStore.conversations.length) selectChat(convoStore.conversations[0])
 }
 
@@ -438,6 +534,7 @@ async function startConversation(user) {
   try {
     const conv = await convoStore.createConversation(participants, token)
     if (conv) {
+      emitJoin(conv._id)
       showNewDialog.value = false
       userSearch.value = ''
       userResults.value = []
@@ -481,34 +578,81 @@ function userLabel(id) {
 
 function setupSocket() {
   if (isSocketReady.value || socket.value) return
+
   const token = auth.accessToken?.value || auth.accessToken
   if (!token) return
+
   const s = connect()
   if (!s) return
-  isSocketReady.value = true
 
+  s.on('connect', () => {
+    isSocketReady.value = true
+    joinAllConversations()
+    s.emit('request-missed-messages', {
+      lastMessageTimestamp: Date.now() - 1000 * 60 * 60 * 24,
+    })
+  })
+
+  s.on('disconnect', () => {
+    isSocketReady.value = false
+  })
+
+  s.on('connect_error', err => {
+    isSocketReady.value = false
+    console.error('Erreur socket :', err?.message || err)
+  })
+
+  // Réception temps réel
   s.on('receive-message', message => {
-    convoStore.addMessage({ ...message, me: message.sender?._id === auth.user?._id })
-    if (selected.value?._id === message.conversationId) {
+    const convId =
+      message.conversation?._id || message.conversation || message.conversationId
+
+    // si le serveur renvoie aussi mon message,
+    // je peux soit le remplacer, soit l'ignorer si déjà présent
+    const isMineMsg = isMine(message)
+
+    convoStore.addMessage({
+      ...message,
+      conversationId: convId,
+    })
+
+    if (selected.value?._id === convId) {
       selected.value.messages = selected.value.messages || []
-      selected.value.messages.push(message)
+      const exists = selected.value.messages.some(m => m._id === message._id)
+      if (!exists) {
+        selected.value.messages.push(message)
+      }
       nextTick(() => scrollToBottom())
     }
   })
 
   s.on('missed-messages', data => {
     ;(data?.messages || []).forEach(m => {
-      convoStore.addMessage({ ...m, me: m.sender?._id === auth.user?._id })
+      const convId = m.conversation?._id || m.conversation || m.conversationId
+      convoStore.addMessage(
+        {
+          ...m,
+          conversationId: convId,
+        }
+      )
     })
   })
 }
 
 function emitJoin(conversationId) {
-  if (socket.value) socket.value.emit('join-conversation', { conversationId })
+  if (socket.value && socket.value.connected) {
+    socket.value.emit('join-conversation', { conversationId })
+  }
 }
 
 function emitMarkRead(conversationId) {
-  if (socket.value) socket.value.emit('mark-conversation-as-read', { conversationId })
+  if (socket.value && socket.value.connected) {
+    socket.value.emit('mark-conversation-as-read', { conversationId })
+  }
+}
+
+function joinAllConversations() {
+  convoStore.conversations.forEach(c => emitJoin(c._id))
 }
 
 watchEffect(() => {
@@ -586,6 +730,7 @@ onBeforeUnmount(() => {
   position: relative;
   font-size: 14px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  word-wrap: break-word;
 }
 
 .message-other .message-bubble {
