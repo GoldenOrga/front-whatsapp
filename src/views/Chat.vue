@@ -361,4 +361,10 @@ onMounted(() => {
   background: rgba(7, 94, 84, 0.06);
   border-color: #25d366;
 }
+
+:deep(.v-avatar img) {
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+}
 </style>
