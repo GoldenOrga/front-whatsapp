@@ -161,50 +161,50 @@
 
           <v-divider></v-divider>
 
-          <v-card-text class="messages-area" ref="messagesArea" @dragover.prevent="onDragOver"
-            @dragenter.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop">
-            <div v-if="isDragOver && selected" class="dropzone-overlay">
-              Déposez vos fichiers ici
-            </div>
+          <v-card-text class="messages-wrapper">
+            <!-- SCROLL AREA réelle -->
+            <div class="messages-area" ref="messagesArea" @dragover.prevent="onDragOver" @dragenter.prevent="onDragOver"
+              @dragleave.prevent="onDragLeave" @drop.prevent="onDrop">
+              <div v-if="!selected" class="empty-chat">
+                Sélectionnez une conversation à gauche pour commencer.
+              </div>
 
-            <div v-if="!selected" class="empty-chat">
-              Sélectionnez une conversation à gauche pour commencer.
-            </div>
-
-            <div v-else class="messages">
-              <div v-for="(m, idx) in selected.messages || []" :key="m._id || m.id || idx"
-                :class="['message-row', isMine(m) ? 'message-me' : 'message-other']">
-                <div class="message-bubble">
-                  <div class="message-text" v-if="m.content">
-                    {{ m.content }}
-                  </div>
-
-                  <!-- ATTACHMENTS -->
-                  <div v-if="m.attachments && m.attachments.length" class="message-attachments">
-                    <div v-for="att in m.attachments" :key="att._id || att.id" class="attachment-item">
-                      <!-- IMAGE / GIF PREVIEW -->
-                      <template v-if="att.type === 'image'">
-                        <img class="attachment-image" :src="fileUrl(att.url)" :alt="att.originalName || 'Image'"
-                          @click="openAttachment(att)" />
-                      </template>
-
-                      <!-- AUTRES TYPES -->
-                      <template v-else>
-                        <a class="attachment-link" :href="fileUrl(att.url)" target="_blank" rel="noopener">
-                          <span v-if="att.type === 'video'">🎬</span>
-                          <span v-else-if="att.type === 'audio'">🎧</span>
-                          <span v-else>📎</span>
-                          {{ att.originalName || 'Fichier' }}
-                        </a>
-                      </template>
+              <div v-else class="messages">
+                <div v-for="(m, idx) in selected.messages || []" :key="m._id || m.id || idx"
+                  :class="['message-row', isMine(m) ? 'message-me' : 'message-other']">
+                  <div class="message-bubble">
+                    <div class="message-text" v-if="m.content">
+                      {{ m.content }}
                     </div>
-                  </div>
 
-                  <div class="message-time">
-                    {{ formatTime(m.createdAt) }}
+                    <div v-if="m.attachments && m.attachments.length" class="message-attachments">
+                      <div v-for="att in m.attachments" :key="att._id || att.id" class="attachment-item">
+                        <template v-if="att.type === 'image'">
+                          <img class="attachment-image" :src="fileUrl(att.url)" :alt="att.originalName || 'Image'"
+                            @click="openAttachment(att)" />
+                        </template>
+                        <template v-else>
+                          <a class="attachment-link" :href="fileUrl(att.url)" target="_blank" rel="noopener">
+                            <span v-if="att.type === 'video'">🎬</span>
+                            <span v-else-if="att.type === 'audio'">🎧</span>
+                            <span v-else>📎</span>
+                            {{ att.originalName || 'Fichier' }}
+                          </a>
+                        </template>
+                      </div>
+                    </div>
+
+                    <div class="message-time">
+                      {{ formatTime(m.createdAt) }}
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
+
+            <!-- OVERLAY qui NE scrolle PAS -->
+            <div v-if="isDragOver && selected" class="dropzone-overlay">
+              Déposez vos fichiers ici
             </div>
           </v-card-text>
 
@@ -1098,6 +1098,11 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.messages-wrapper {
+  position: relative;
+  padding: 0;
+}
+
 .dropzone-overlay {
   position: absolute;
   inset: 0;
@@ -1135,6 +1140,16 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.messages-area {
+  position: relative;
+  height: calc(100vh - 260px);
+  overflow-y: auto;
+  padding: 16px;
+  background-image: linear-gradient(180deg,
+      rgba(0, 0, 0, 0.02),
+      transparent);
 }
 
 .attachment-item {
