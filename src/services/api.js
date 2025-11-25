@@ -19,6 +19,7 @@ async function request(method, url, body, token) {
   if (token) headers.Authorization = `Bearer ${token}`
   console.log(API_BASE)
   console.log(`${API_BASE}${url}`);
+  console.log(import.meta.env);
   const res = await fetch(`${API_BASE}${url}`, {
     method,
     headers,
