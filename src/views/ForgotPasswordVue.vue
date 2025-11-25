@@ -156,7 +156,7 @@ const onSubmit = async () => {
     newPassword.value = ''
     confirmPassword.value = ''
     router.push({ name: 'Login', query: { msg: 'Mot de passe mis à jour.' } })
-  } catch (e) {
+  } catch {
     // handled in store
   }
 }

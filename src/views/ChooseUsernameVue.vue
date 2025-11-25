@@ -75,7 +75,7 @@ const onSubmit = async () => {
   try {
     await auth.updateProfile({ name: name.value })
     router.push('/profile-photo')
-  } catch (e) {
+  } catch {
     // handled in store
   }
 }

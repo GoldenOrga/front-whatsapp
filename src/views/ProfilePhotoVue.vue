@@ -151,7 +151,7 @@ async function startCamera() {
       // ensure playback starts
       await videoEl.value.play?.()
     }
-  } catch (e) {
+  } catch {
     cameraStream.value = null
     cameraAllowed.value = false
     cameraActive.value = false
@@ -205,7 +205,7 @@ const onSubmit = async () => {
   try {
     const uploaded = await api.uploadFile(file.value, auth.accessToken)
     finalUrl = api.buildFileUrl(uploaded.url)
-  } catch (e) {
+  } catch {
     uploading.value = false
     return
   }
@@ -215,7 +215,7 @@ const onSubmit = async () => {
     await auth.updateProfile({ avatar: finalUrl })
     success.value = true
     router.push('/chat')
-  } catch (e) {
+  } catch {
     // handled in store
   }
 }

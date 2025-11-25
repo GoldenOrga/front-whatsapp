@@ -29,7 +29,7 @@ async function request(method, url, body, token) {
   let data = null
   try {
     data = text ? JSON.parse(text) : null
-  } catch (e) {
+  } catch {
     // ignore parse errors, handled below
   }
 

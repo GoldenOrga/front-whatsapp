@@ -110,7 +110,7 @@ const onSubmit = async () => {
     await auth.login({ email: email.value, password: password.value, rememberMe: rememberMe.value })
     const redirect = route.query.redirect || '/chat'
     router.push(redirect)
-  } catch (e) {
+  } catch {
     // error already set in store
   }
 }

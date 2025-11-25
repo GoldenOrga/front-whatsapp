@@ -1,10 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Chat from '../views/Chat.vue'
-import Login from '../views/Login.vue'
-import Register from '../views/Register.vue'
-import ForgotPassword from '../views/ForgotPassword.vue'
-import ChooseUsername from '../views/ChooseUsername.vue'
-import ProfilePhoto from '../views/ProfilePhoto.vue'
+import Chat from '../views/ChatVue.vue'
+import Login from '../views/LoginVue.vue'
+import Register from '../views/RegisterVue.vue'
+import ForgotPassword from '../views/ForgotPasswordVue.vue'
+import ChooseUsername from '../views/ChooseUsernameVue.vue'
+import ProfilePhoto from '../views/ProfilePhotoVue.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({

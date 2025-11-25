@@ -104,7 +104,7 @@ const onSubmit = async () => {
       rememberMe: rememberMe.value,
     })
     router.push('/choose-username')
-  } catch (e) {
+  } catch {
     // handled by store
   }
 }

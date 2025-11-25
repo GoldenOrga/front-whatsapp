@@ -24,7 +24,7 @@
                     <div v-if="tab === 0">
                         <!-- Connexion -->
                         <v-card-text>
-                            <v-form ref="loginForm" @submit.prevent="submitLogin" v-slot="{ validate }">
+                            <v-form ref="loginForm" @submit.prevent="submitLogin">
                                 <v-text-field v-model="login.email" label="Email" type="email"
                                     :rules="[rules.required, rules.email]" dense required />
                                 <v-text-field v-model="login.password" label="Mot de passe" type="password"
@@ -46,7 +46,7 @@
                     <div v-if="tab === 1">
                         <!-- Inscription -->
                         <v-card-text>
-                            <v-form ref="registerForm" @submit.prevent="submitRegister" v-slot="{ validate }">
+                            <v-form ref="registerForm" @submit.prevent="submitRegister">
                                 <v-text-field v-model="register.name" label="Nom complet" :rules="[rules.required]"
                                     dense required />
                                 <v-text-field v-model="register.email" label="Email" type="email"
