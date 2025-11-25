@@ -142,23 +142,33 @@
       <v-col cols="12" md="8" class="chat-col pl-5">
         <v-card class="whatsapp-card chat-card" height="100%">
           <v-card-title class="chat-header">
-            <v-avatar size="40">{{ selected ? avatarInitials(selected) : 'U' }}</v-avatar>
+            <v-avatar size="40">
+              <!-- Si une conversation est sélectionnée, on affiche son avatar -->
+              <img
+                v-if="selected"
+                :src="avatarUrl(selected)"
+                alt="avatar conversation"
+              />
+              <!-- Sinon, un fallback simple -->
+              <span v-else>
+                {{ auth.user?.name ? auth.user.name[0].toUpperCase() : 'U' }}
+              </span>
+            </v-avatar>
+
             <div class="ml-3">
               <div class="title">
                 {{ selected ? displayName(selected) : 'Sélectionnez une discussion' }}
               </div>
               <div class="subtitle">
-                <template v-if="selected">
-                  <span v-if="typingLabel">{{ typingLabel }}</span>
-                  <span v-else>{{ selected.isGroup ? 'Groupe' : 'Privé' }}</span>
-                </template>
+                {{ selected ? (selected.isGroup ? 'Groupe' : 'Privé') : '' }}
+                <!-- c'est ici que tu pourras mettre "X est en train d'écrire..." -->
               </div>
             </div>
+
             <v-spacer></v-spacer>
             <div class="d-flex align-center">
               <v-menu>
                 <template #activator="{ props }">
-                  <!-- Bouton activator propre Vuetify 3 -->
                   <v-btn
                     v-bind="props"
                     icon
@@ -722,6 +732,7 @@ function setupSocket() {
   })
 
   s.on('user-status', payload => {
+    console.log('user logged');
     const { userId, isOnline, lastSeen } = payload || {}
 
     if (!userId) return
