@@ -140,7 +140,7 @@ const onSubmit = async () => {
   if (!valid.valid) return
   success.value = false
   try {
-    if (auth.isAuthenticated) {
+    if (auth.isAuthenticated?.value) {
       await auth.changePassword({
         currentPassword: currentPassword.value,
         newPassword: newPassword.value,

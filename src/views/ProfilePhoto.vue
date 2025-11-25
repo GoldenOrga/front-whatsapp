@@ -116,7 +116,7 @@ const videoEl = ref(null)
 const capturedPhotoUrl = ref('')
 
 watchEffect(() => {
-  if (!auth.isAuthenticated) {
+  if (!auth.isAuthenticated?.value) {
     router.push('/login')
   }
 })

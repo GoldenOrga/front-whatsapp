@@ -15,8 +15,8 @@ import initSentry from './plugins/sentry'
 const app = createApp(App)
 
 const vuetify = createVuetify({
-    components,
-    directives,
+  components,
+  directives,
 })
 
 initSentry(app)

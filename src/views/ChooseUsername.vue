@@ -56,7 +56,7 @@ const name = ref(auth.user?.name || '')
 const formRef = ref(null)
 
 watchEffect(() => {
-  if (!auth.isAuthenticated) {
+  if (!auth.isAuthenticated?.value) {
     router.push('/login')
   }
 })

@@ -43,13 +43,14 @@
                 required
               />
 
-              <v-checkbox
-                v-model="rememberMe"
-                density="compact"
-                label="Se souvenir de moi"
-                hide-details
-                class="mt-1"
-              />
+              <div class="remember-row mt-1" role="checkbox" :aria-checked="rememberMe" @click="rememberMe = !rememberMe">
+                <div class="remember-box" :class="{ checked: rememberMe }">
+                  <svg v-if="rememberMe" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 13l4 4L19 7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </div>
+                <span class="remember-label">Se souvenir de moi</span>
+              </div>
 
               <v-btn
                 class="primary-whatsapp whatsapp-btn mt-4"
@@ -98,6 +99,8 @@ const successMsg = ref('')
 onMounted(() => {
   auth.clearError()
   successMsg.value = route.query.msg || ''
+  // refléter l'état mémorisé si déjà connecté auparavant
+  rememberMe.value = !!auth.rememberMe?.value
 })
 
 const onSubmit = async () => {
@@ -174,5 +177,40 @@ const onSubmit = async () => {
 .links a {
   color: #075e54;
   text-decoration: none;
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-box {
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #075e54;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  transition: all 0.15s ease;
+}
+
+.remember-box.checked {
+  background: #25d366;
+  border-color: #25d366;
+}
+
+.remember-box svg {
+  width: 14px;
+  height: 14px;
+}
+
+.remember-label {
+  color: #075e54;
+  font-size: 14px;
 }
 </style>

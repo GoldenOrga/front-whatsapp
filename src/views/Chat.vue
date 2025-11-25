@@ -244,7 +244,7 @@ async function handleLogout() {
 }
 
 watchEffect(() => {
-  if (!auth.isAuthenticated) {
+  if (!auth.isAuthenticated?.value) {
     router.push('/login')
   }
 })
