@@ -348,26 +348,64 @@ function avatarInitials(c) {
 
 function displayName(c) {
   if (!c) return 'Conversation'
-  if (c.name) return c.name
-  if (Array.isArray(c.participants)) {
-    const others = c.participants.filter(p => p._id !== auth.user?._id)
-    if (others.length) return others.map(o => o.name || 'Utilisateur').join(', ')
+
+  // Si le backend / store a déjà fourni un nom (conversationName ou name),
+  // on le respecte en priorité
+  if (c.name && c.name.trim()) return c.name.trim()
+
+  if (!Array.isArray(c.participants) || !c.participants.length) {
+    return 'Conversation'
   }
-  return 'Conversation'
+
+  // On enlève "moi" de la liste
+  const others = c.participants.filter(p => {
+    const pid = String(p._id || p.id || '')
+    const mid = String(myId.value || '')
+    return pid && mid && pid !== mid
+  })
+
+  if (others.length === 0) {
+    // Je suis tout seul dans la conv (cas limite)
+    return 'Moi'
+  }
+
+  if (others.length === 1) {
+    return others[0].name || others[0].email || 'Utilisateur'
+  }
+
+  // Groupe : noms de tout le monde sauf moi
+  return others
+    .map(o => o.name || o.email || 'Utilisateur')
+    .join(', ')
 }
 
 function avatarUrl(c) {
   if (c?.avatar) return c.avatar
-  const firstUser = Array.isArray(c?.participants)
-    ? c.participants.find(p => p._id !== auth.user?._id) || c.participants[0]
-    : null
-  return firstUser?.avatar || fallbackAvatar
+
+  if (!Array.isArray(c?.participants) || !c.participants.length) {
+    return fallbackAvatar
+  }
+
+  // On cherche d'abord un participant qui n'est pas moi
+  const others = c.participants.filter(p => {
+    const pid = String(p._id || p.id || '')
+    const mid = String(myId.value || '')
+    return pid && mid && pid !== mid
+  })
+
+  const firstOther = others[0] || c.participants[0]
+  return firstOther?.avatar || fallbackAvatar
 }
 
 function isConversationOnline(c) {
   if (!c || !Array.isArray(c.participants)) return false
+
   return c.participants
-    .filter(p => p._id !== auth.user?._id)
+    .filter(p => {
+      const pid = String(p._id || p.id || '')
+      const mid = String(myId.value || '')
+      return pid && mid && pid !== mid
+    })
     .some(p => p.isOnline)
 }
 
