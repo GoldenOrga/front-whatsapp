@@ -1,3 +1,4 @@
+// src/services/api.js
 function normalizeBaseUrl(base, fallbackPath) {
   if (!base) return fallbackPath
   const hasProtocol = /^https?:\/\//i.test(base)
@@ -5,8 +6,14 @@ function normalizeBaseUrl(base, fallbackPath) {
   return hasProtocol ? cleaned : `http://${cleaned}`
 }
 
-const API_BASE = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL ?? 'https://backwatshap-production.up.railway.app/api', '/api')
-const UPLOAD_BASE = normalizeBaseUrl(import.meta.env.VITE_UPLOAD_BASE_URL ?? 'https://backwatshap-production.up.railway.app/uploads', '/uploads')
+const API_BASE = normalizeBaseUrl(
+  import.meta.env.VITE_API_BASE_URL ?? 'https://backwatshap-production.up.railway.app/api',
+  '/api'
+)
+const UPLOAD_BASE = normalizeBaseUrl(
+  import.meta.env.VITE_UPLOAD_BASE_URL ?? 'https://backwatshap-production.up.railway.app/uploads',
+  '/uploads'
+)
 
 const API_ORIGIN = /^https?:\/\//i.test(API_BASE)
   ? new URL(API_BASE).origin
@@ -17,9 +24,7 @@ async function request(method, url, body, token) {
     'Content-Type': 'application/json',
   }
   if (token) headers.Authorization = `Bearer ${token}`
-  console.log(API_BASE)
-  console.log(`${API_BASE}${url}`);
-  console.log(import.meta.env);
+
   const res = await fetch(`${API_BASE}${url}`, {
     method,
     headers,
@@ -31,7 +36,7 @@ async function request(method, url, body, token) {
   try {
     data = text ? JSON.parse(text) : null
   } catch {
-    // ignore parse errors, handled below
+    // on laisse data = null
   }
 
   if (!res.ok) {
@@ -45,6 +50,11 @@ async function request(method, url, body, token) {
   return data
 }
 
+/**
+ * Upload d'un fichier simple.
+ * file: File
+ * extraFields: { conversationId?: string, messageId?: string, ... }
+ */
 async function uploadFile(file, token, extraFields = {}) {
   const form = new FormData()
   form.append('file', file)
@@ -58,7 +68,14 @@ async function uploadFile(file, token, extraFields = {}) {
     body: form,
   })
 
-  const data = await res.json().catch(() => null)
+  const text = await res.text()
+  let data = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    // on laisse data = null
+  }
+
   if (!res.ok) {
     const message = data?.message || data?.error || `Erreur ${res.status}`
     const error = new Error(message)
@@ -66,9 +83,13 @@ async function uploadFile(file, token, extraFields = {}) {
     error.data = data
     throw error
   }
+
   return data
 }
 
+/**
+ * Construit une URL complète vers un fichier uploadé.
+ */
 function buildFileUrl(pathOrUrl) {
   if (!pathOrUrl) return ''
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl
@@ -88,12 +109,10 @@ function buildFileUrl(pathOrUrl) {
   // UPLOAD_BASE relatif (ex: /uploads) ou chemin déjà fourni par l'API
   const basePath = UPLOAD_BASE.startsWith('/') ? UPLOAD_BASE : `/${UPLOAD_BASE}`
 
-  // Si l'API renvoie déjà /upload... ou /uploads..., on ne préfixe pas deux fois
   if (cleanPath.startsWith(basePath) || cleanPath.startsWith('/upload')) {
     return `${API_ORIGIN}${cleanPath}`
   }
 
-  // Sinon on préfixe avec la base attendue
   return `${API_ORIGIN}${basePath || defaultUploadPrefix}${cleanPath}`
 }
 

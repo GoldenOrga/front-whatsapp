@@ -31,64 +31,32 @@
           </v-card-title>
 
           <v-card-text>
-            <v-text-field
-              v-model="search"
-              placeholder="Rechercher ou démarrer une discussion"
-              dense
-              hide-details
-              rounded
-              prepend-inner-icon="mdi-magnify"
-            />
-            <v-select
-              v-model="filter"
-              :items="filterItems"
-              density="compact"
-              hide-details
-              variant="outlined"
-              class="mt-2"
-              label="Filtrer"
-            />
+            <v-text-field v-model="search" placeholder="Rechercher ou démarrer une discussion" dense hide-details
+              rounded prepend-inner-icon="mdi-magnify" />
+            <v-select v-model="filter" :items="filterItems" density="compact" hide-details variant="outlined"
+              class="mt-2" label="Filtrer" />
             <div class="chip-row mt-2">
-              <v-chip
-                v-for="opt in quickFilters"
-                :key="opt.value"
-                size="small"
-                :color="filter === opt.value ? 'primary' : ''"
-                variant="tonal"
-                @click="filter = opt.value"
-              >
+              <v-chip v-for="opt in quickFilters" :key="opt.value" size="small"
+                :color="filter === opt.value ? 'primary' : ''" variant="tonal" @click="filter = opt.value">
                 {{ opt.label }}
               </v-chip>
             </div>
 
             <!-- LISTE DES CONVERSATIONS -->
             <v-list dense nav class="mt-2 convo-list">
-              <v-list-item
-                v-for="c in filteredList"
-                :key="c._id"
-                :value="c._id"
-                @click="selectChat(c)"
-                :class="['convo-list-item', { 'active-convo': selected && selected._id === c._id }]"
-              >
-                <!-- Avatar (Vuetify 3 : slot prepend) -->
+              <v-list-item v-for="c in filteredList" :key="c._id" :value="c._id" @click="selectChat(c)"
+                :class="['convo-list-item', { 'active-convo': selected && selected._id === c._id }]">
                 <template #prepend>
                   <v-avatar size="40">
                     <img :src="avatarUrl(c)" alt="" />
                   </v-avatar>
                 </template>
 
-                <!-- Contenu principal -->
                 <div class="w-100">
                   <div class="d-flex align-center justify-space-between">
                     <div class="d-flex align-center">
                       <span>{{ displayName(c) }}</span>
-                      <v-chip
-                        v-if="c.isGroup"
-                        size="x-small"
-                        class="ml-2"
-                        color="primary"
-                        variant="tonal"
-                      >
+                      <v-chip v-if="c.isGroup" size="x-small" class="ml-2" color="primary" variant="tonal">
                         Groupe
                       </v-chip>
                     </div>
@@ -107,7 +75,6 @@
                   </div>
                 </div>
 
-                <!-- Actions (Vuetify 3 : slot append) -->
                 <template #append>
                   <div class="d-flex align-center" style="gap: 6px;">
                     <v-badge v-if="c.unread" color="green" dot>
@@ -143,13 +110,7 @@
         <v-card class="whatsapp-card chat-card" height="100%">
           <v-card-title class="chat-header">
             <v-avatar size="40">
-              <!-- Si une conversation est sélectionnée, on affiche son avatar -->
-              <img
-                v-if="selected"
-                :src="avatarUrl(selected)"
-                alt="avatar conversation"
-              />
-              <!-- Sinon, un fallback simple -->
+              <img v-if="selected" :src="avatarUrl(selected)" alt="avatar conversation" />
               <span v-else>
                 {{ auth.user?.name ? auth.user.name[0].toUpperCase() : 'U' }}
               </span>
@@ -160,8 +121,10 @@
                 {{ selected ? displayName(selected) : 'Sélectionnez une discussion' }}
               </div>
               <div class="subtitle">
-                {{ selected ? (selected.isGroup ? 'Groupe' : 'Privé') : '' }}
-                <!-- c'est ici que tu pourras mettre "X est en train d'écrire..." -->
+                <span v-if="selected">
+                  {{ selected.isGroup ? 'Groupe' : 'Privé' }}
+                </span>
+                <span v-if="typingLabel"> · {{ typingLabel }}</span>
               </div>
             </div>
 
@@ -169,12 +132,7 @@
             <div class="d-flex align-center">
               <v-menu>
                 <template #activator="{ props }">
-                  <v-btn
-                    v-bind="props"
-                    icon
-                    class="mr-2"
-                    variant="text"
-                  >
+                  <v-btn v-bind="props" icon class="mr-2" variant="text">
                     <v-avatar size="36">
                       <img :src="auth.user?.avatar || fallbackAvatar" alt="moi" />
                     </v-avatar>
@@ -203,40 +161,79 @@
 
           <v-divider></v-divider>
 
-          <v-card-text class="messages-area" ref="messagesArea">
+          <v-card-text class="messages-area" ref="messagesArea" @dragover.prevent="onDragOver"
+            @dragenter.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop">
+            <div v-if="isDragOver && selected" class="dropzone-overlay">
+              Déposez vos fichiers ici
+            </div>
+
             <div v-if="!selected" class="empty-chat">
               Sélectionnez une conversation à gauche pour commencer.
             </div>
 
             <div v-else class="messages">
-              <div
-                v-for="(m, idx) in selected.messages || []"
-                :key="m._id || m.id || idx"
-                :class="['message-row', isMine(m) ? 'message-me' : 'message-other']"
-              >
+              <div v-for="(m, idx) in selected.messages || []" :key="m._id || m.id || idx"
+                :class="['message-row', isMine(m) ? 'message-me' : 'message-other']">
                 <div class="message-bubble">
-                  <div class="message-text">{{ m.content }}</div>
-                  <div class="message-time">{{ formatTime(m.createdAt) }}</div>
+                  <div class="message-text" v-if="m.content">
+                    {{ m.content }}
+                  </div>
+
+                  <!-- ATTACHMENTS -->
+                  <div v-if="m.attachments && m.attachments.length" class="message-attachments">
+                    <div v-for="att in m.attachments" :key="att._id || att.id" class="attachment-item">
+                      <!-- IMAGE / GIF PREVIEW -->
+                      <template v-if="att.type === 'image'">
+                        <img class="attachment-image" :src="fileUrl(att.url)" :alt="att.originalName || 'Image'"
+                          @click="openAttachment(att)" />
+                      </template>
+
+                      <!-- AUTRES TYPES -->
+                      <template v-else>
+                        <a class="attachment-link" :href="fileUrl(att.url)" target="_blank" rel="noopener">
+                          <span v-if="att.type === 'video'">🎬</span>
+                          <span v-else-if="att.type === 'audio'">🎧</span>
+                          <span v-else>📎</span>
+                          {{ att.originalName || 'Fichier' }}
+                        </a>
+                      </template>
+                    </div>
+                  </div>
+
+                  <div class="message-time">
+                    {{ formatTime(m.createdAt) }}
+                  </div>
                 </div>
               </div>
             </div>
           </v-card-text>
 
+          <!-- FICHIERS EN ATTENTE (juste au-dessus de la zone de texte) -->
+          <div v-if="selected && pendingFiles.length" class="pending-attachments">
+            <div v-for="(file, idx) in pendingFiles" :key="idx" class="pending-attachment-pill">
+              <span class="pending-name">
+                📎 {{ file.name }}
+              </span>
+              <v-btn icon size="x-small" variant="text" @click="removePendingFile(idx)">
+                <v-icon size="14">mdi-close</v-icon>
+              </v-btn>
+            </div>
+          </div>
+
           <v-divider></v-divider>
 
           <v-card-actions class="p-3">
-            <v-text-field
-              v-model="newMessage"
-              placeholder="Écrire un message"
-              dense
-              hide-details
-              rounded
-              class="flex-grow-1"
-              @keyup.enter="sendMessage"
-              @input="onInputTyping"
-              @blur="onStopTyping"
-            />
-            <v-btn icon color="green" @click="sendMessage">
+            <!-- BOUTON JOINDRE -->
+            <v-btn icon @click="triggerFilePicker" :disabled="!selected">
+              <v-icon>mdi-paperclip</v-icon>
+            </v-btn>
+
+            <input ref="fileInput" type="file" multiple class="d-none" @change="onFileChange" />
+
+            <v-text-field v-model="newMessage" placeholder="Écrire un message" dense hide-details rounded
+              class="flex-grow-1" :disabled="!selected" @keyup.enter="sendMessage" @input="onInputTyping"
+              @blur="onStopTyping" />
+            <v-btn icon color="green" @click="sendMessage" :disabled="!selected">
               <v-icon>mdi-send</v-icon>
             </v-btn>
           </v-card-actions>
@@ -250,47 +247,28 @@
         <v-card-title>Nouvelle discussion</v-card-title>
         <v-card-text>
           <div v-if="selectedUsers.length" class="mb-2 selected-chips">
-            <v-chip
-              v-for="id in selectedUsers"
-              :key="id"
-              size="small"
-              class="mr-2 mb-2"
-              closable
-              @click:close="removeSelected(id)"
-            >
+            <v-chip v-for="id in selectedUsers" :key="id" size="small" class="mr-2 mb-2" closable
+              @click:close="removeSelected(id)">
               {{ userLabel(id) }}
             </v-chip>
           </div>
-          <v-text-field
-            v-model="userSearch"
-            label="Rechercher un utilisateur"
-            dense
-            prepend-inner-icon="mdi-magnify"
-            @keyup="searchUsers"
-          />
+          <v-text-field v-model="userSearch" label="Rechercher un utilisateur" dense prepend-inner-icon="mdi-magnify"
+            @keyup="searchUsers" />
 
-          <!-- LISTE DES UTILISATEURS (dialog) -->
           <v-list v-if="userResults.length">
-            <v-list-item
-              v-for="u in userResults"
-              :key="u._id"
-              @click="toggleUser(u)"
-              :class="['user-result', { selected: isSelected(u._id) }]"
-            >
-              <!-- Avatar (slot prepend) -->
+            <v-list-item v-for="u in userResults" :key="u._id" @click="toggleUser(u)"
+              :class="['user-result', { selected: isSelected(u._id) }]">
               <template #prepend>
                 <v-avatar size="36">
                   <img :src="u.avatar || fallbackAvatar" alt="" />
                 </v-avatar>
               </template>
 
-              <!-- Contenu -->
               <div>
                 <v-list-item-title>{{ u.name }}</v-list-item-title>
                 <v-list-item-subtitle>{{ u.email }}</v-list-item-subtitle>
               </div>
 
-              <!-- Icône check (slot append) -->
               <template #append>
                 <v-icon color="primary" v-if="isSelected(u._id)">mdi-check-circle</v-icon>
               </template>
@@ -302,12 +280,8 @@
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="showNewDialog = false">Fermer</v-btn>
-          <v-btn
-            color="primary"
-            :disabled="!selectedUsers.length || newConvoLoading"
-            :loading="newConvoLoading"
-            @click="startConversation"
-          >
+          <v-btn color="primary" :disabled="!selectedUsers.length || newConvoLoading" :loading="newConvoLoading"
+            @click="startConversation">
             Démarrer
           </v-btn>
         </v-card-actions>
@@ -317,7 +291,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watchEffect, onBeforeUnmount } from 'vue'
+import {
+  ref,
+  computed,
+  onMounted,
+  nextTick,
+  watchEffect,
+  onBeforeUnmount,
+  watch,
+} from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useConversationsStore } from '../stores/conversations'
@@ -328,9 +310,12 @@ const router = useRouter()
 const auth = useAuthStore()
 const myId = computed(() => auth.user?._id || auth.user?.id)
 const convoStore = useConversationsStore()
-const { socket, connect, disconnect } = useSocket(auth.accessToken?.value || auth.accessToken)
+const { socket, connect, disconnect } = useSocket(
+  auth.accessToken?.value || auth.accessToken
+)
 
-const fallbackAvatar = 'https://api.dicebear.com/6.x/initials/svg?seed=default'
+const fallbackAvatar =
+  'https://api.dicebear.com/6.x/initials/svg?seed=default'
 
 const search = ref('')
 const filter = ref('all')
@@ -356,11 +341,17 @@ const userSearchTimer = ref(null)
 const newConvoLoading = ref(false)
 const isSocketReady = ref(false)
 
+const fileInput = ref(null)
+const pendingFiles = ref([])
+const isDragOver = ref(false)
+
 // Typing : conversationId -> { userId: true }
 const typingState = ref({})
 let typingTimer = null
 
-const filteredList = computed(() => convoStore.filtered(search.value, filter.value))
+const filteredList = computed(() =>
+  convoStore.filtered(search.value, filter.value)
+)
 
 const typingLabel = computed(() => {
   if (!selected.value) return ''
@@ -371,13 +362,17 @@ const typingLabel = computed(() => {
   const usersMap = typingState.value[convId]
   if (!usersMap) return ''
 
-  const ids = Object.keys(usersMap).filter(id => id && id !== String(myId.value || ''))
+  const ids = Object.keys(usersMap).filter(
+    id => id && id !== String(myId.value || '')
+  )
   if (!ids.length) return ''
 
   const participants = selected.value.participants || []
   const names = ids
     .map(id => {
-      const p = participants.find(u => String(u._id || u.id) === id)
+      const p = participants.find(
+        u => String(u._id || u.id) === id
+      )
       return p?.name || p?.email || 'Utilisateur'
     })
     .filter(Boolean)
@@ -396,18 +391,25 @@ const typingLabel = computed(() => {
 async function selectChat(c) {
   if (!c) return
 
-  selected.value = c
-  convoStore.markRead(c._id)
-  emitJoin(c._id)
-  emitMarkRead(c._id)
+  const conv =
+    convoStore.conversations.find(x => String(x._id) === String(c._id)) || c
+
+  selected.value = conv
+  newMessage.value = ''
+  pendingFiles.value = []
+
+  convoStore.markRead(conv._id)
+  emitJoin(conv._id)
+  emitMarkRead(conv._id)
 
   const token = auth.accessToken?.value || auth.accessToken
-  if (token && (!c.messages || !c.messages.length)) {
-    await convoStore.fetchMessages(c._id, token)
+  if (token && (!conv.messages || !conv.messages.length)) {
+    await convoStore.fetchMessages(conv._id, token)
   }
 
   nextTick(() => scrollToBottom())
 }
+
 
 function avatarInitials(c) {
   if (!c || !c.name) return 'U'
@@ -464,6 +466,68 @@ function avatarUrl(c) {
   return firstOther?.avatar || fallbackAvatar
 }
 
+function triggerFilePicker() {
+  if (!selected.value) return
+  if (fileInput.value) {
+    fileInput.value.click()
+  }
+}
+
+function onFileChange(event) {
+  if (!selected.value) return
+  const files = Array.from(event.target.files || [])
+  addPendingFiles(files)
+  event.target.value = ''
+}
+
+function addPendingFiles(files) {
+  if (!selected.value) return
+  files.forEach(f => {
+    pendingFiles.value.push(f)
+  })
+}
+
+function removePendingFile(index) {
+  pendingFiles.value.splice(index, 1)
+}
+
+function onDragOver() {
+  if (!selected.value) return
+  isDragOver.value = true
+}
+
+function onDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    isDragOver.value = false
+  }
+}
+
+function onDrop(e) {
+  if (!selected.value) return
+  isDragOver.value = false
+  const files = Array.from(e.dataTransfer?.files || [])
+  if (!files.length) return
+  addPendingFiles(files)
+}
+
+async function uploadPendingFiles() {
+  const token = auth.accessToken?.value || auth.accessToken
+  if (!token || !pendingFiles.value.length || !selected.value) return []
+
+  const ids = []
+
+  for (const file of pendingFiles.value) {
+    const attachment = await api.uploadFile(file, token, {
+      conversationId: selected.value._id,
+    })
+    if (attachment && attachment._id) {
+      ids.push(attachment._id)
+    }
+  }
+
+  return ids
+}
+
 function isConversationOnline(c) {
   if (!c || !Array.isArray(c.participants)) return false
 
@@ -476,12 +540,6 @@ function isConversationOnline(c) {
     .some(p => p.isOnline)
 }
 
-/**
- * Gestion du "typing" côté front :
- *  - onInputTyping() => emit('typing', { conversationId, isTyping: true })
- *  - timeout 2s => emit('typing', { isTyping: false })
- *  - onStopTyping() (blur) => isTyping: false
- */
 function onInputTyping() {
   if (!selected.value || !socket.value || !socket.value.connected) return
 
@@ -505,10 +563,6 @@ function onStopTyping() {
   })
 }
 
-/**
- *  - mes messages : sender._id === auth.user._id => côté droit (vert)
- *  - les autres : côté gauche (gris)
- */
 function isMine(m) {
   if (!m || !myId.value) return false
 
@@ -519,77 +573,71 @@ function isMine(m) {
 }
 
 async function sendMessage() {
-  if (!selected.value || !newMessage.value.trim()) return
+  if (!selected.value) return
 
   const content = newMessage.value.trim()
-  const tempId = `tmp-${Date.now()}`
 
-  const tempMsg = {
-    _id: tempId,
-    content,
-    createdAt: new Date().toISOString(),
-    status: 'pending',
-    sender: {
-      _id: myId.value,
-      name: auth.user?.name,
-      avatar: auth.user?.avatar,
-    },
-    conversation: selected.value._id,
-  }
+  // On autorise : texte seul, fichiers seuls, ou les deux
+  if (!content && !pendingFiles.value.length) return
 
-  selected.value.messages = selected.value.messages || []
-  selected.value.messages.push(tempMsg)
-  selected.value.lastMessage = {
-    content: tempMsg.content,
-    createdAt: tempMsg.createdAt,
-  }
-  newMessage.value = ''
-  nextTick(() => scrollToBottom())
+  const convId = selected.value._id
 
-  // on arrête le "typing" dès qu'on envoie
+  // on stoppe le "typing"
   onStopTyping()
 
+  // on vide immédiatement le champ texte (UX)
+  newMessage.value = ''
+
   const token = auth.accessToken?.value || auth.accessToken
-  const canUseSocket = socket.value && socket.value.connected
+  if (!token) return
 
-  const sendViaHttp = async () => {
-    if (!token) return
-    try {
-      const res = await api.post(
-        '/messages',
-        { conversation_id: selected.value._id, content },
-        token
-      )
-      if (res) {
-        const idx = selected.value.messages.findIndex(m => m._id === tempId)
-        if (idx !== -1) {
-          selected.value.messages[idx] = res
-        }
-      }
-    } catch (e) {
-      tempMsg.status = 'error'
+  try {
+    // 1) upload des fichiers
+    const attachmentIds = await uploadPendingFiles()
+    pendingFiles.value = []
+
+    // 2) création du message côté back
+    const payload = {
+      conversation_id: convId,
+      content,
+      attachments: attachmentIds,
     }
-  }
 
-  if (canUseSocket) {
-    socket.value.emit(
-      'send-message',
-      { conversationId: selected.value._id, content },
-      ack => {
-        if (ack?.messageId) {
-          tempMsg._id = ack.messageId
-        }
+    const res = await api.post('/messages', payload, token)
+
+    if (res) {
+      // 3) on met à jour le store
+      //    (si le socket l'a déjà inséré, addMessage va MERGER et pas dupliquer)
+      convoStore.addMessage({
+        ...res,
+        conversationId: convId,
+      })
+
+      // 4) si la conversation affichée est celle-là, on la resynchronise
+      const fresh = convoStore.conversations.find(
+        c => String(c._id) === String(convId)
+      )
+      if (fresh) {
+        selected.value = fresh
       }
-    )
-  } else {
-    await sendViaHttp()
+
+      nextTick(() => scrollToBottom())
+    }
+  } catch (e) {
+    // ici tu peux logguer ou afficher une notif
+    console.error('Erreur sendMessage', e)
   }
 }
+
 
 function formatTime(ts) {
   if (!ts) return ''
   const d = new Date(ts)
-  return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
+  return (
+    d.getHours().toString().padStart(2, '0') +
+    ':' +
+    d.getMinutes().toString().padStart(2, '0')
+  )
 }
 
 function shortTime(ts) {
@@ -624,7 +672,11 @@ function toggleArchive(c) {
 
 function removeConversation(c) {
   convoStore.remove(c._id)
-  if (selected.value?._id === c._id) selected.value = null
+  if (selected.value?._id === c._id) {
+    selected.value = null
+    newMessage.value = ''
+    pendingFiles.value = []
+  }
 }
 
 async function refresh() {
@@ -632,7 +684,9 @@ async function refresh() {
   if (!token) return
   await convoStore.fetchConversations(token)
   joinAllConversations()
-  if (!selected.value && convoStore.conversations.length) selectChat(convoStore.conversations[0])
+  if (!selected.value && convoStore.conversations.length) {
+    selectChat(convoStore.conversations[0])
+  }
 }
 
 async function searchUsers() {
@@ -646,7 +700,10 @@ async function searchUsers() {
     const q = userSearch.value.trim()
     let res = []
     if (q) {
-      res = await api.get(`/users/search?q=${encodeURIComponent(q)}`, token)
+      res = await api.get(
+        `/users/search?q=${encodeURIComponent(q)}`,
+        token
+      )
     } else {
       res = await api.get('/users?limit=10', token)
     }
@@ -732,9 +789,7 @@ function setupSocket() {
   })
 
   s.on('user-status', payload => {
-    console.log('user logged');
     const { userId, isOnline, lastSeen } = payload || {}
-
     if (!userId) return
 
     convoStore.updateUserStatus(userId, isOnline, lastSeen)
@@ -755,12 +810,10 @@ function setupSocket() {
     console.error('Erreur socket :', err?.message || err)
   })
 
-  // Conversation créée ailleurs (via contrôleur HTTP + getIo())
   s.on('conversation-created', conv => {
     convoStore.upsertConversation(conv)
   })
 
-  // Indicateur "user-typing" venant du back
   s.on('user-typing', ({ conversationId, senderId, isTyping }) => {
     if (!conversationId || !senderId) return
 
@@ -784,29 +837,36 @@ function setupSocket() {
     }
   })
 
-  // Réception temps réel des messages
   s.on('receive-message', message => {
     const convId =
-      message.conversation?._id || message.conversation || message.conversationId
+      message.conversation?._id ||
+      message.conversation ||
+      message.conversationId
 
+    if (!convId) return
+
+    // 1) On met à jour le store (dedup via _id géré par addMessage)
     convoStore.addMessage({
       ...message,
       conversationId: convId,
     })
 
-    if (selected.value?._id === convId) {
-      selected.value.messages = selected.value.messages || []
-      const exists = selected.value.messages.some(m => m._id === message._id)
-      if (!exists) {
-        selected.value.messages.push(message)
+    // 2) Si la conv affichée est celle-là, on resynchronise selected
+    if (selected.value && String(selected.value._id) === String(convId)) {
+      const fresh = convoStore.conversations.find(
+        c => String(c._id) === String(convId)
+      )
+      if (fresh) {
+        selected.value = fresh
       }
       nextTick(() => scrollToBottom())
     }
   })
 
   s.on('missed-messages', data => {
-    ;(data?.messages || []).forEach(m => {
-      const convId = m.conversation?._id || m.conversation || m.conversationId
+    ; (data?.messages || []).forEach(m => {
+      const convId =
+        m.conversation?._id || m.conversation || m.conversationId
       convoStore.addMessage({
         ...m,
         conversationId: convId,
@@ -831,9 +891,26 @@ function joinAllConversations() {
   convoStore.conversations.forEach(c => emitJoin(c._id))
 }
 
+function fileUrl(path) {
+  return api.buildFileUrl(path)
+}
+
+function openAttachment(att) {
+  const url = fileUrl(att.url)
+  if (!url) return
+  window.open(url, '_blank', 'noopener')
+}
+
 watchEffect(() => {
   if (!auth.isAuthenticated?.value) {
     router.push('/login')
+  }
+})
+
+watch(selected, val => {
+  if (!val) {
+    newMessage.value = ''
+    pendingFiles.value = []
   }
 })
 
@@ -880,10 +957,13 @@ onBeforeUnmount(() => {
 }
 
 .messages-area {
-  height: calc(100vh - 220px);
+  position: relative;
+  height: calc(100vh - 260px);
   overflow-y: auto;
   padding: 16px;
-  background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.02), transparent);
+  background-image: linear-gradient(180deg,
+      rgba(0, 0, 0, 0.02),
+      transparent);
 }
 
 .message-row {
@@ -1016,5 +1096,67 @@ onBeforeUnmount(() => {
 
 .new-btn {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+/* FICHIERS EN ATTENTE AU-DESSUS DU TEXTE */
+.pending-attachments {
+  padding: 4px 16px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pending-attachment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(37, 211, 102, 0.12);
+  font-size: 12px;
+}
+
+/* ATTACHMENTS DANS LES BULLES */
+.message-attachments {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attachment-item {
+  max-width: 240px;
+}
+
+.attachment-image {
+  max-width: 100%;
+  border-radius: 6px;
+  cursor: pointer;
+  display: block;
+}
+
+.attachment-link {
+  font-size: 12px;
+  text-decoration: none;
+  color: #075e54;
+  background: rgba(7, 94, 84, 0.08);
+  padding: 4px 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>
