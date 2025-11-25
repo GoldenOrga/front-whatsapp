@@ -142,51 +142,54 @@
       <v-col cols="12" md="8" class="chat-col pl-5">
         <v-card class="whatsapp-card chat-card" height="100%">
           <v-card-title class="chat-header">
-  <v-avatar size="40">{{ selected ? avatarInitials(selected) : 'U' }}</v-avatar>
-  <div class="ml-3">
-    <div class="title">
-      {{ selected ? displayName(selected) : 'Sélectionnez une discussion' }}
-    </div>
-    <div class="subtitle">
-      {{ selected ? (selected.isGroup ? 'Groupe' : 'Privé') : '' }}
-    </div>
-  </div>
-  <v-spacer></v-spacer>
-  <div class="d-flex align-center">
-    <v-menu>
-      <template #activator="{ props }">
-        <!-- Bouton activator propre Vuetify 3 -->
-        <v-btn
-          v-bind="props"
-          icon
-          class="mr-2"
-          variant="text"
-        >
-          <v-avatar size="36">
-            <img :src="auth.user?.avatar || fallbackAvatar" alt="moi" />
-          </v-avatar>
-        </v-btn>
-      </template>
+            <v-avatar size="40">{{ selected ? avatarInitials(selected) : 'U' }}</v-avatar>
+            <div class="ml-3">
+              <div class="title">
+                {{ selected ? displayName(selected) : 'Sélectionnez une discussion' }}
+              </div>
+              <div class="subtitle">
+                <template v-if="selected">
+                  <span v-if="typingLabel">{{ typingLabel }}</span>
+                  <span v-else>{{ selected.isGroup ? 'Groupe' : 'Privé' }}</span>
+                </template>
+              </div>
+            </div>
+            <v-spacer></v-spacer>
+            <div class="d-flex align-center">
+              <v-menu>
+                <template #activator="{ props }">
+                  <!-- Bouton activator propre Vuetify 3 -->
+                  <v-btn
+                    v-bind="props"
+                    icon
+                    class="mr-2"
+                    variant="text"
+                  >
+                    <v-avatar size="36">
+                      <img :src="auth.user?.avatar || fallbackAvatar" alt="moi" />
+                    </v-avatar>
+                  </v-btn>
+                </template>
 
-      <v-list>
-        <v-list-item @click="goTo('/choose-username')">
-          <v-list-item-title>Modifier pseudo</v-list-item-title>
-        </v-list-item>
-        <v-list-item @click="goTo('/profile-photo')">
-          <v-list-item-title>Modifier photo</v-list-item-title>
-        </v-list-item>
-        <v-list-item @click="goTo('/forgot-password')">
-          <v-list-item-title>Changer mot de passe</v-list-item-title>
-        </v-list-item>
-        <v-list-item @click="handleLogout">
-          <v-list-item-title>Se déconnecter</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+                <v-list>
+                  <v-list-item @click="goTo('/choose-username')">
+                    <v-list-item-title>Modifier pseudo</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item @click="goTo('/profile-photo')">
+                    <v-list-item-title>Modifier photo</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item @click="goTo('/forgot-password')">
+                    <v-list-item-title>Changer mot de passe</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item @click="handleLogout">
+                    <v-list-item-title>Se déconnecter</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
 
-    <span class="mr-2">{{ auth.user?.name || 'Moi' }}</span>
-  </div>
-</v-card-title>
+              <span class="mr-2">{{ auth.user?.name || 'Moi' }}</span>
+            </div>
+          </v-card-title>
 
           <v-divider></v-divider>
 
@@ -220,6 +223,8 @@
               rounded
               class="flex-grow-1"
               @keyup.enter="sendMessage"
+              @input="onInputTyping"
+              @blur="onStopTyping"
             />
             <v-btn icon color="green" @click="sendMessage">
               <v-icon>mdi-send</v-icon>
@@ -301,7 +306,6 @@
   </v-container>
 </template>
 
-
 <script setup>
 import { ref, computed, onMounted, nextTick, watchEffect, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
@@ -315,7 +319,6 @@ const auth = useAuthStore()
 const myId = computed(() => auth.user?._id || auth.user?.id)
 const convoStore = useConversationsStore()
 const { socket, connect, disconnect } = useSocket(auth.accessToken?.value || auth.accessToken)
-
 
 const fallbackAvatar = 'https://api.dicebear.com/6.x/initials/svg?seed=default'
 
@@ -343,7 +346,42 @@ const userSearchTimer = ref(null)
 const newConvoLoading = ref(false)
 const isSocketReady = ref(false)
 
+// Typing : conversationId -> { userId: true }
+const typingState = ref({})
+let typingTimer = null
+
 const filteredList = computed(() => convoStore.filtered(search.value, filter.value))
+
+const typingLabel = computed(() => {
+  if (!selected.value) return ''
+
+  const convId = String(selected.value._id || '')
+  if (!convId) return ''
+
+  const usersMap = typingState.value[convId]
+  if (!usersMap) return ''
+
+  const ids = Object.keys(usersMap).filter(id => id && id !== String(myId.value || ''))
+  if (!ids.length) return ''
+
+  const participants = selected.value.participants || []
+  const names = ids
+    .map(id => {
+      const p = participants.find(u => String(u._id || u.id) === id)
+      return p?.name || p?.email || 'Utilisateur'
+    })
+    .filter(Boolean)
+
+  if (!names.length) return ''
+
+  if (names.length === 1) {
+    return `${names[0]} est en train d'écrire...`
+  }
+  if (names.length === 2) {
+    return `${names[0]} et ${names[1]} écrivent...`
+  }
+  return 'Plusieurs personnes écrivent...'
+})
 
 async function selectChat(c) {
   if (!c) return
@@ -374,15 +412,12 @@ function avatarInitials(c) {
 function displayName(c) {
   if (!c) return 'Conversation'
 
-  // Si le backend / store a déjà fourni un nom (conversationName ou name),
-  // on le respecte en priorité
   if (c.name && c.name.trim()) return c.name.trim()
 
   if (!Array.isArray(c.participants) || !c.participants.length) {
     return 'Conversation'
   }
 
-  // On enlève "moi" de la liste
   const others = c.participants.filter(p => {
     const pid = String(p._id || p.id || '')
     const mid = String(myId.value || '')
@@ -390,7 +425,6 @@ function displayName(c) {
   })
 
   if (others.length === 0) {
-    // Je suis tout seul dans la conv (cas limite)
     return 'Moi'
   }
 
@@ -398,7 +432,6 @@ function displayName(c) {
     return others[0].name || others[0].email || 'Utilisateur'
   }
 
-  // Groupe : noms de tout le monde sauf moi
   return others
     .map(o => o.name || o.email || 'Utilisateur')
     .join(', ')
@@ -411,7 +444,6 @@ function avatarUrl(c) {
     return fallbackAvatar
   }
 
-  // On cherche d'abord un participant qui n'est pas moi
   const others = c.participants.filter(p => {
     const pid = String(p._id || p.id || '')
     const mid = String(myId.value || '')
@@ -435,7 +467,35 @@ function isConversationOnline(c) {
 }
 
 /**
- * ULTRA SIMPLE :
+ * Gestion du "typing" côté front :
+ *  - onInputTyping() => emit('typing', { conversationId, isTyping: true })
+ *  - timeout 2s => emit('typing', { isTyping: false })
+ *  - onStopTyping() (blur) => isTyping: false
+ */
+function onInputTyping() {
+  if (!selected.value || !socket.value || !socket.value.connected) return
+
+  socket.value.emit('typing', {
+    conversationId: selected.value._id,
+    isTyping: true,
+  })
+
+  clearTimeout(typingTimer)
+  typingTimer = setTimeout(() => {
+    onStopTyping()
+  }, 2000)
+}
+
+function onStopTyping() {
+  if (!selected.value || !socket.value || !socket.value.connected) return
+
+  socket.value.emit('typing', {
+    conversationId: selected.value._id,
+    isTyping: false,
+  })
+}
+
+/**
  *  - mes messages : sender._id === auth.user._id => côté droit (vert)
  *  - les autres : côté gauche (gris)
  */
@@ -459,7 +519,6 @@ async function sendMessage() {
     content,
     createdAt: new Date().toISOString(),
     status: 'pending',
-    // POINT IMPORTANT : on met un sender avec _id = myId
     sender: {
       _id: myId.value,
       name: auth.user?.name,
@@ -477,6 +536,9 @@ async function sendMessage() {
   newMessage.value = ''
   nextTick(() => scrollToBottom())
 
+  // on arrête le "typing" dès qu'on envoie
+  onStopTyping()
+
   const token = auth.accessToken?.value || auth.accessToken
   const canUseSocket = socket.value && socket.value.connected
 
@@ -489,7 +551,6 @@ async function sendMessage() {
         token
       )
       if (res) {
-        // On remplace le message temporaire par le vrai du back
         const idx = selected.value.messages.findIndex(m => m._id === tempId)
         if (idx !== -1) {
           selected.value.messages[idx] = res
@@ -665,14 +726,39 @@ function setupSocket() {
     console.error('Erreur socket :', err?.message || err)
   })
 
-  // Réception temps réel
+  // Conversation créée ailleurs (via contrôleur HTTP + getIo())
+  s.on('conversation-created', conv => {
+    convoStore.upsertConversation(conv)
+  })
+
+  // Indicateur "user-typing" venant du back
+  s.on('user-typing', ({ conversationId, senderId, isTyping }) => {
+    if (!conversationId || !senderId) return
+
+    const convKey = String(conversationId)
+    const current = typingState.value[convKey] || {}
+
+    if (isTyping) {
+      typingState.value = {
+        ...typingState.value,
+        [convKey]: {
+          ...current,
+          [senderId]: true,
+        },
+      }
+    } else {
+      const { [senderId]: _, ...rest } = current
+      typingState.value = {
+        ...typingState.value,
+        [convKey]: rest,
+      }
+    }
+  })
+
+  // Réception temps réel des messages
   s.on('receive-message', message => {
     const convId =
       message.conversation?._id || message.conversation || message.conversationId
-
-    // si le serveur renvoie aussi mon message,
-    // je peux soit le remplacer, soit l'ignorer si déjà présent
-    const isMineMsg = isMine(message)
 
     convoStore.addMessage({
       ...message,
@@ -692,12 +778,10 @@ function setupSocket() {
   s.on('missed-messages', data => {
     ;(data?.messages || []).forEach(m => {
       const convId = m.conversation?._id || m.conversation || m.conversationId
-      convoStore.addMessage(
-        {
-          ...m,
-          conversationId: convId,
-        }
-      )
+      convoStore.addMessage({
+        ...m,
+        conversationId: convId,
+      })
     })
   })
 }
@@ -730,6 +814,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(typingTimer)
   disconnect()
 })
 </script>

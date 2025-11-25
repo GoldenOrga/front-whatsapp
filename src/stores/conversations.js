@@ -12,6 +12,35 @@ export const useConversationsStore = defineStore('conversations', () => {
     messagesLoading: new Map(), // conversationId -> bool
   })
 
+  /**
+   * Formate une conversation venant du back
+   * pour l'adapter à ce que le front attend.
+   */
+  function formatConversation(raw) {
+    if (!raw) return null
+
+    const lastMsg = raw.lastMessage || null
+
+    return {
+      _id: raw._id,
+      name: raw.conversationName || raw.name || '',
+      avatar: raw.avatar || null,
+      participants: raw.participants || [],
+      isGroup: !!raw.isGroup,
+      lastMessage: lastMsg
+        ? {
+          _id: lastMsg._id,
+          content: lastMsg.content,
+          createdAt: lastMsg.createdAt,
+          sender: lastMsg.sender,
+        }
+        : null,
+      unread: raw.unreadCount ?? raw.unread ?? 0,
+      updatedAt: raw.updatedAt || lastMsg?.createdAt || raw.createdAt,
+      messages: Array.isArray(raw.messages) ? raw.messages : [],
+    }
+  }
+
   const filtered = (search = '', filter = 'all') => {
     const q = search.trim().toLowerCase()
     return state.conversations
@@ -50,27 +79,9 @@ export const useConversationsStore = defineStore('conversations', () => {
       const data = await api.get('/messages/conversations', token)
       const list = Array.isArray(data) ? data : data?.conversations || []
 
-      state.conversations = list.map(raw => {
-        const lastMsg = raw.lastMessage || null
-        return {
-          _id: raw._id,
-          name: raw.conversationName || raw.name || '',
-          avatar: raw.avatar || null,
-          participants: raw.participants || [],
-          isGroup: !!raw.isGroup,
-          lastMessage: lastMsg
-            ? {
-              _id: lastMsg._id,
-              content: lastMsg.content,
-              createdAt: lastMsg.createdAt,
-              sender: lastMsg.sender,
-            }
-            : null,
-          unread: raw.unreadCount ?? 0,
-          updatedAt: raw.updatedAt,
-          messages: [],
-        }
-      })
+      state.conversations = list
+        .map(formatConversation)
+        .filter(Boolean)
     } catch (err) {
       state.error = err?.message || 'Impossible de charger les conversations'
     } finally {
@@ -106,7 +117,10 @@ export const useConversationsStore = defineStore('conversations', () => {
   }
 
   function addMessage(message) {
-    const conv = state.conversations.find(c => c._id === message.conversationId)
+    const convId = String(message.conversationId || (message.conversation && message.conversation._id) || '')
+    if (!convId) return
+
+    const conv = state.conversations.find(c => String(c._id) === convId)
     if (conv) {
       conv.messages = conv.messages || []
 
@@ -129,9 +143,9 @@ export const useConversationsStore = defineStore('conversations', () => {
       return
     }
 
-    // conversation inconnue
+    // conversation inconnue → on crée une entrée minimale
     state.conversations.unshift({
-      _id: message.conversationId,
+      _id: convId,
       name: 'Nouvelle conversation',
       avatar: null,
       participants: [],
@@ -161,6 +175,9 @@ export const useConversationsStore = defineStore('conversations', () => {
     state.archived.delete(id)
   }
 
+  /**
+   * Création via HTTP (quand c'est toi qui crées la conversation)
+   */
   async function createConversation(participantIds, token, name = '') {
     state.loading = true
     state.error = null
@@ -168,28 +185,11 @@ export const useConversationsStore = defineStore('conversations', () => {
       const body = { participantIds, name }
       const conv = await api.post('/messages/conversations', body, token)
       if (conv) {
-        const raw = conv
-        const lastMsg = raw.lastMessage || null
-        const formatted = {
-          _id: raw._id,
-          name: raw.conversationName || raw.name || '',
-          avatar: raw.avatar || null,
-          participants: raw.participants || [],
-          isGroup: !!raw.isGroup,
-          lastMessage: lastMsg
-            ? {
-              _id: lastMsg._id,
-              content: lastMsg.content,
-              createdAt: lastMsg.createdAt,
-              sender: lastMsg.sender,
-            }
-            : null,
-          unread: raw.unreadCount ?? 0,
-          updatedAt: raw.updatedAt,
-          messages: [],
+        const formatted = formatConversation(conv)
+        if (formatted) {
+          state.conversations.unshift(formatted)
+          return formatted
         }
-        state.conversations.unshift(formatted)
-        return formatted
       }
       return null
     } catch (err) {
@@ -198,6 +198,35 @@ export const useConversationsStore = defineStore('conversations', () => {
     } finally {
       state.loading = false
     }
+  }
+
+  /**
+   * Upsert utilisé par le websocket `conversation-created`
+   * - si la conversation n'existe pas → on l'ajoute en haut
+   * - si elle existe → on met à jour ses métadonnées mais on garde les messages existants
+   */
+  function upsertConversation(raw) {
+    const formatted = formatConversation(raw)
+    if (!formatted) return
+
+    const idx = state.conversations.findIndex(c => String(c._id) === String(formatted._id))
+
+    if (idx === -1) {
+      state.conversations.unshift(formatted)
+      return
+    }
+
+    const existing = state.conversations[idx]
+    state.conversations[idx] = {
+      ...formatted,
+      // on garde les messages déjà chargés si on en a
+      messages: existing.messages && existing.messages.length
+        ? existing.messages
+        : formatted.messages,
+      unread: formatted.unread ?? existing.unread ?? 0,
+    }
+
+    bumpConversationToTop(formatted._id)
   }
 
   return {
@@ -212,5 +241,6 @@ export const useConversationsStore = defineStore('conversations', () => {
     unarchive,
     remove,
     createConversation,
+    upsertConversation,
   }
 })
