@@ -5,8 +5,8 @@ function normalizeBaseUrl(base, fallbackPath) {
   return hasProtocol ? cleaned : `http://${cleaned}`
 }
 
-const API_BASE = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL ?? 'https://front-whatsapp-production.up.railway.app/api', '/api')
-const UPLOAD_BASE = normalizeBaseUrl(import.meta.env.VITE_UPLOAD_BASE_URL ?? 'https://front-whatsapp-production.up.railway.app/uploads', '/uploads')
+const API_BASE = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL ?? 'https://backwatshap-production.up.railway.app/api', '/api')
+const UPLOAD_BASE = normalizeBaseUrl(import.meta.env.VITE_UPLOAD_BASE_URL ?? 'https://backwatshap-production.up.railway.app/uploads', '/uploads')
 
 const API_ORIGIN = /^https?:\/\//i.test(API_BASE)
   ? new URL(API_BASE).origin
