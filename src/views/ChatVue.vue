@@ -721,6 +721,24 @@ function setupSocket() {
     isSocketReady.value = false
   })
 
+  s.on('user-status', payload => {
+    const { userId, isOnline, lastSeen } = payload || {}
+
+    if (!userId) return
+
+    convoStore.updateUserStatus(userId, isOnline, lastSeen)
+
+    const myIdStr = String(myId.value || '')
+    if (myIdStr && myIdStr === String(userId)) {
+      if (auth.user) {
+        auth.user.isOnline = !!isOnline
+        if (lastSeen) {
+          auth.user.lastSeen = lastSeen
+        }
+      }
+    }
+  })
+
   s.on('connect_error', err => {
     isSocketReady.value = false
     console.error('Erreur socket :', err?.message || err)

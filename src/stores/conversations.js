@@ -229,6 +229,26 @@ export const useConversationsStore = defineStore('conversations', () => {
     bumpConversationToTop(formatted._id)
   }
 
+  function updateUserStatus(userId, isOnline, lastSeen) {
+    const targetId = String(userId)
+
+    state.conversations.forEach(conv => {
+      if (!Array.isArray(conv.participants)) return
+
+      conv.participants.forEach(p => {
+        const pid = String(p._id || p.id || '')
+        if (!pid) return
+
+        if (pid === targetId) {
+          p.isOnline = !!isOnline
+          if (lastSeen) {
+            p.lastSeen = lastSeen
+          }
+        }
+      })
+    })
+  }
+
   return {
     ...state,
     all,
@@ -242,5 +262,6 @@ export const useConversationsStore = defineStore('conversations', () => {
     remove,
     createConversation,
     upsertConversation,
+    updateUserStatus,
   }
 })
