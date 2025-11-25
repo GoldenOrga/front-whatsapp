@@ -115,12 +115,6 @@ const fileInput = ref(null)
 const videoEl = ref(null)
 const capturedPhotoUrl = ref('')
 
-watchEffect(() => {
-  if (!auth.isAuthenticated?.value) {
-    router.push('/login')
-  }
-})
-
 const preview = computed(() => {
   return previewUrl.value || capturedPhotoUrl.value || defaultAvatar
 })

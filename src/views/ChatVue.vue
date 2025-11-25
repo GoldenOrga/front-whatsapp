@@ -61,6 +61,7 @@
               </v-chip>
             </div>
 
+            <!-- LISTE DES CONVERSATIONS -->
             <v-list dense nav class="mt-2 convo-list">
               <v-list-item
                 v-for="c in filteredList"
@@ -69,14 +70,16 @@
                 @click="selectChat(c)"
                 :class="['convo-list-item', { 'active-convo': selected && selected._id === c._id }]"
               >
-                <v-list-item-avatar>
+                <!-- Avatar (Vuetify 3 : slot prepend) -->
+                <template #prepend>
                   <v-avatar size="40">
                     <img :src="avatarUrl(c)" alt="" />
                   </v-avatar>
-                </v-list-item-avatar>
+                </template>
 
-                <v-list-item-content>
-                  <v-list-item-title class="d-flex align-center justify-space-between">
+                <!-- Contenu principal -->
+                <div class="w-100">
+                  <div class="d-flex align-center justify-space-between">
                     <div class="d-flex align-center">
                       <span>{{ displayName(c) }}</span>
                       <v-chip
@@ -90,40 +93,45 @@
                       </v-chip>
                     </div>
                     <span class="time">{{ shortTime(c.updatedAt || c.createdAt) }}</span>
-                  </v-list-item-title>
+                  </div>
+
                   <v-list-item-subtitle class="truncate">
                     {{ c.lastMessage?.content || 'Aucun message' }}
                   </v-list-item-subtitle>
+
                   <div class="status-row">
                     <span class="status-dot" :class="{ online: isConversationOnline(c) }"></span>
                     <span class="status-text">
                       {{ isConversationOnline(c) ? 'En ligne' : 'Hors ligne' }}
                     </span>
                   </div>
-                </v-list-item-content>
+                </div>
 
-                <v-list-item-action class="d-flex align-center" style="gap: 6px;">
-                  <v-badge v-if="c.unread" color="green" dot>
-                    <span class="unread-count">{{ c.unread }}</span>
-                  </v-badge>
-                  <v-menu>
-                    <template #activator="{ props }">
-                      <v-btn v-bind="props" icon size="small" variant="text">
-                        <v-icon>mdi-dots-vertical</v-icon>
-                      </v-btn>
-                    </template>
-                    <v-list>
-                      <v-list-item @click.stop="toggleArchive(c)">
-                        <v-list-item-title>
-                          {{ isArchived(c._id) ? 'Désarchiver' : 'Archiver' }}
-                        </v-list-item-title>
-                      </v-list-item>
-                      <v-list-item @click.stop="removeConversation(c)">
-                        <v-list-item-title>Supprimer</v-list-item-title>
-                      </v-list-item>
-                    </v-list>
-                  </v-menu>
-                </v-list-item-action>
+                <!-- Actions (Vuetify 3 : slot append) -->
+                <template #append>
+                  <div class="d-flex align-center" style="gap: 6px;">
+                    <v-badge v-if="c.unread" color="green" dot>
+                      <span class="unread-count">{{ c.unread }}</span>
+                    </v-badge>
+                    <v-menu>
+                      <template #activator="{ props }">
+                        <v-btn v-bind="props" icon size="small" variant="text">
+                          <v-icon>mdi-dots-vertical</v-icon>
+                        </v-btn>
+                      </template>
+                      <v-list>
+                        <v-list-item @click.stop="toggleArchive(c)">
+                          <v-list-item-title>
+                            {{ isArchived(c._id) ? 'Désarchiver' : 'Archiver' }}
+                          </v-list-item-title>
+                        </v-list-item>
+                        <v-list-item @click.stop="removeConversation(c)">
+                          <v-list-item-title>Supprimer</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </div>
+                </template>
               </v-list-item>
             </v-list>
           </v-card-text>
@@ -134,45 +142,51 @@
       <v-col cols="12" md="8" class="chat-col pl-5">
         <v-card class="whatsapp-card chat-card" height="100%">
           <v-card-title class="chat-header">
-            <v-avatar size="40">{{ selected ? avatarInitials(selected) : 'U' }}</v-avatar>
-            <div class="ml-3">
-              <div class="title">
-                {{ selected ? displayName(selected) : 'Sélectionnez une discussion' }}
-              </div>
-              <div class="subtitle">
-                {{ selected ? (selected.isGroup ? 'Groupe' : 'Privé') : '' }}
-              </div>
-            </div>
-            <v-spacer></v-spacer>
-            <div class="d-flex align-center">
-              <v-menu>
-                <template #activator="{ props }">
-                  <v-avatar
-                    v-bind="props"
-                    size="36"
-                    class="mr-2 clickable"
-                  >
-                    <img :src="auth.user?.avatar || fallbackAvatar" alt="moi" />
-                  </v-avatar>
-                </template>
-                <v-list>
-                  <v-list-item @click="goTo('/choose-username')">
-                    <v-list-item-title>Modifier pseudo</v-list-item-title>
-                  </v-list-item>
-                  <v-list-item @click="goTo('/profile-photo')">
-                    <v-list-item-title>Modifier photo</v-list-item-title>
-                  </v-list-item>
-                  <v-list-item @click="goTo('/forgot-password')">
-                    <v-list-item-title>Changer mot de passe</v-list-item-title>
-                  </v-list-item>
-                  <v-list-item @click="handleLogout">
-                    <v-list-item-title>Se déconnecter</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
-              <span class="mr-2">{{ auth.user?.name || 'Moi' }}</span>
-            </div>
-          </v-card-title>
+  <v-avatar size="40">{{ selected ? avatarInitials(selected) : 'U' }}</v-avatar>
+  <div class="ml-3">
+    <div class="title">
+      {{ selected ? displayName(selected) : 'Sélectionnez une discussion' }}
+    </div>
+    <div class="subtitle">
+      {{ selected ? (selected.isGroup ? 'Groupe' : 'Privé') : '' }}
+    </div>
+  </div>
+  <v-spacer></v-spacer>
+  <div class="d-flex align-center">
+    <v-menu>
+      <template #activator="{ props }">
+        <!-- Bouton activator propre Vuetify 3 -->
+        <v-btn
+          v-bind="props"
+          icon
+          class="mr-2"
+          variant="text"
+        >
+          <v-avatar size="36">
+            <img :src="auth.user?.avatar || fallbackAvatar" alt="moi" />
+          </v-avatar>
+        </v-btn>
+      </template>
+
+      <v-list>
+        <v-list-item @click="goTo('/choose-username')">
+          <v-list-item-title>Modifier pseudo</v-list-item-title>
+        </v-list-item>
+        <v-list-item @click="goTo('/profile-photo')">
+          <v-list-item-title>Modifier photo</v-list-item-title>
+        </v-list-item>
+        <v-list-item @click="goTo('/forgot-password')">
+          <v-list-item-title>Changer mot de passe</v-list-item-title>
+        </v-list-item>
+        <v-list-item @click="handleLogout">
+          <v-list-item-title>Se déconnecter</v-list-item-title>
+        </v-list-item>
+      </v-list>
+    </v-menu>
+
+    <span class="mr-2">{{ auth.user?.name || 'Moi' }}</span>
+  </div>
+</v-card-title>
 
           <v-divider></v-divider>
 
@@ -239,6 +253,8 @@
             prepend-inner-icon="mdi-magnify"
             @keyup="searchUsers"
           />
+
+          <!-- LISTE DES UTILISATEURS (dialog) -->
           <v-list v-if="userResults.length">
             <v-list-item
               v-for="u in userResults"
@@ -246,18 +262,26 @@
               @click="toggleUser(u)"
               :class="['user-result', { selected: isSelected(u._id) }]"
             >
-              <v-list-item-avatar>
+              <!-- Avatar (slot prepend) -->
+              <template #prepend>
                 <v-avatar size="36">
                   <img :src="u.avatar || fallbackAvatar" alt="" />
                 </v-avatar>
-              </v-list-item-avatar>
-              <v-list-item-title>{{ u.name }}</v-list-item-title>
-              <v-list-item-subtitle>{{ u.email }}</v-list-item-subtitle>
+              </template>
+
+              <!-- Contenu -->
+              <div>
+                <v-list-item-title>{{ u.name }}</v-list-item-title>
+                <v-list-item-subtitle>{{ u.email }}</v-list-item-subtitle>
+              </div>
+
+              <!-- Icône check (slot append) -->
               <template #append>
                 <v-icon color="primary" v-if="isSelected(u._id)">mdi-check-circle</v-icon>
               </template>
             </v-list-item>
           </v-list>
+
           <div v-else class="text-caption">Aucun résultat</div>
         </v-card-text>
         <v-card-actions>
@@ -276,6 +300,7 @@
     </v-dialog>
   </v-container>
 </template>
+
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watchEffect, onBeforeUnmount } from 'vue'

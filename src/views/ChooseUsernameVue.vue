@@ -55,12 +55,6 @@ const router = useRouter()
 const name = ref(auth.user?.name || '')
 const formRef = ref(null)
 
-watchEffect(() => {
-  if (!auth.isAuthenticated?.value) {
-    router.push('/login')
-  }
-})
-
 const rules = {
   required: v => (!!v && v.toString().trim().length > 0) || 'Champ requis',
   min: len => v => (v && v.length >= len) || `Minimum ${len} caractères`,
