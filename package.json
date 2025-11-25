@@ -16,6 +16,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@mdi/font": "^7.4.47",
     "@sentry/tracing": "^7.120.4",
     "@sentry/vue": "^10.27.0",
     "dotenv": "^17.2.3",
