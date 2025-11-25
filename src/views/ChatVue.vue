@@ -271,16 +271,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watchEffect } from 'vue'
+import { ref, computed, onMounted, nextTick, watchEffect, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useConversationsStore } from '../stores/conversations'
 import api from '../services/api'
+import { useSocket } from '../composables/useSocket'
 
 const router = useRouter()
 const auth = useAuthStore()
 const convoStore = useConversationsStore()
-
+const { socket, connect, disconnect } = useSocket(auth.accessToken?.value || auth.accessToken)
 const fallbackAvatar = 'https://api.dicebear.com/6.x/initials/svg?seed=default'
 
 const search = ref('')
@@ -305,12 +306,15 @@ const userResults = ref([])
 const selectedUsers = ref([])
 const userSearchTimer = ref(null)
 const newConvoLoading = ref(false)
+const isSocketReady = ref(false)
 
 const filteredList = computed(() => convoStore.filtered(search.value, filter.value))
 
 function selectChat(c) {
   selected.value = c
   convoStore.markRead(c._id)
+  emitJoin(c._id)
+  emitMarkRead(c._id)
   nextTick(() => scrollToBottom())
 }
 
@@ -332,17 +336,25 @@ function avatarUrl(c) {
 
 function sendMessage() {
   if (!selected.value || !newMessage.value.trim()) return
+  const content = newMessage.value.trim()
   const msg = {
-    id: Date.now(),
-    content: newMessage.value.trim(),
+    _id: Date.now().toString(),
+    content,
     time: Date.now(),
     me: true,
+    conversationId: selected.value._id,
   }
   selected.value.messages = selected.value.messages || []
   selected.value.messages.push(msg)
   selected.value.lastMessage = { content: msg.content }
   newMessage.value = ''
   nextTick(() => scrollToBottom())
+
+  if (socket.value) {
+    socket.value.emit('send-message', { conversationId: selected.value._id, content }, ack => {
+      if (ack?.messageId) msg._id = ack.messageId
+    })
+  }
 }
 
 function formatTime(ts) {
@@ -467,6 +479,38 @@ function userLabel(id) {
   return u?.name || 'Utilisateur'
 }
 
+function setupSocket() {
+  if (isSocketReady.value || socket.value) return
+  const token = auth.accessToken?.value || auth.accessToken
+  if (!token) return
+  const s = connect()
+  if (!s) return
+  isSocketReady.value = true
+
+  s.on('receive-message', message => {
+    convoStore.addMessage({ ...message, me: message.sender?._id === auth.user?._id })
+    if (selected.value?._id === message.conversationId) {
+      selected.value.messages = selected.value.messages || []
+      selected.value.messages.push(message)
+      nextTick(() => scrollToBottom())
+    }
+  })
+
+  s.on('missed-messages', data => {
+    ;(data?.messages || []).forEach(m => {
+      convoStore.addMessage({ ...m, me: m.sender?._id === auth.user?._id })
+    })
+  })
+}
+
+function emitJoin(conversationId) {
+  if (socket.value) socket.value.emit('join-conversation', { conversationId })
+}
+
+function emitMarkRead(conversationId) {
+  if (socket.value) socket.value.emit('mark-conversation-as-read', { conversationId })
+}
+
 watchEffect(() => {
   if (!auth.isAuthenticated?.value) {
     router.push('/login')
@@ -474,7 +518,12 @@ watchEffect(() => {
 })
 
 onMounted(async () => {
+  setupSocket()
   await refresh()
+})
+
+onBeforeUnmount(() => {
+  disconnect()
 })
 </script>
 

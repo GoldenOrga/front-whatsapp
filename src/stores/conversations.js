@@ -3,12 +3,12 @@ import { reactive, computed } from 'vue'
 import api from '../services/api'
 
 export const useConversationsStore = defineStore('conversations', () => {
-const state = reactive({
-  conversations: [],
-  archived: new Set(),
-  loading: false,
-  error: null,
-})
+  const state = reactive({
+    conversations: [],
+    archived: new Set(),
+    loading: false,
+    error: null,
+  })
 
 const filtered = (search = '', filter = 'all') => {
   const q = search.trim().toLowerCase()
@@ -52,6 +52,37 @@ const filtered = (search = '', filter = 'all') => {
     if (conv) conv.unread = 0
   }
 
+  function upsertConversation(conv) {
+    if (!conv?._id) return
+    const idx = state.conversations.findIndex(c => c._id === conv._id)
+    if (idx >= 0) {
+      state.conversations[idx] = { ...state.conversations[idx], ...conv }
+    } else {
+      state.conversations.unshift(conv)
+    }
+  }
+
+  function addMessage(message) {
+    if (!message?.conversationId) return
+    const conv = state.conversations.find(c => c._id === message.conversationId)
+    if (conv) {
+      conv.messages = conv.messages || []
+      conv.messages.push(message)
+      conv.lastMessage = { content: message.content, createdAt: message.createdAt }
+      if (!message.me) {
+        conv.unread = (conv.unread || 0) + 1
+      }
+    } else {
+      state.conversations.unshift({
+        _id: message.conversationId,
+        name: 'Nouvelle conversation',
+        messages: [message],
+        lastMessage: { content: message.content, createdAt: message.createdAt },
+        unread: message.me ? 0 : 1,
+      })
+    }
+  }
+
   function archive(id) {
     state.archived.add(id)
   }
@@ -90,6 +121,8 @@ const filtered = (search = '', filter = 'all') => {
     filtered,
     fetchConversations,
     markRead,
+    upsertConversation,
+    addMessage,
     archive,
     unarchive,
     remove,
