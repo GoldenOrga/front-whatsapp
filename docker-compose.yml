@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  whatsapp-front:
+    build: .
+    container_name: whatsapp-front
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+  whatsapp-back:
+    build: ../BackWatshap
+    container_name: whatsapp-back
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
