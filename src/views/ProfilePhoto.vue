@@ -62,7 +62,7 @@
                 <v-chip v-if="cameraAllowed" color="green" size="small" class="ml-2">Caméra OK</v-chip>
 
                 <div v-if="cameraActive" class="camera-preview">
-                  <video ref="videoEl" autoplay playsinline></video>
+                  <video ref="videoEl" autoplay playsinline muted></video>
                   <v-btn
                     class="primary-whatsapp whatsapp-btn mt-2"
                     block
@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, ref, watchEffect, nextTick } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../services/api'
@@ -113,6 +113,7 @@ const cameraStream = ref(null)
 const formRef = ref(null)
 const fileInput = ref(null)
 const videoEl = ref(null)
+const capturedPhotoUrl = ref('')
 
 watchEffect(() => {
   if (!auth.isAuthenticated) {
@@ -121,7 +122,7 @@ watchEffect(() => {
 })
 
 const preview = computed(() => {
-  return previewUrl.value || defaultAvatar
+  return previewUrl.value || capturedPhotoUrl.value || defaultAvatar
 })
 
 const loading = auth.loading
@@ -145,9 +146,10 @@ async function startCamera() {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true })
     cameraStream.value = stream
     cameraAllowed.value = true
-    cameraActive.value = true
     if (videoEl.value) {
       videoEl.value.srcObject = stream
+      // ensure playback starts
+      await videoEl.value.play?.()
     }
   } catch (e) {
     cameraStream.value = null
@@ -168,6 +170,8 @@ async function toggleCamera() {
     stopCamera()
     return
   }
+  cameraActive.value = true
+  await nextTick()
   await startCamera()
 }
 
@@ -184,7 +188,8 @@ async function capturePhoto() {
   const capturedFile = new File([blob], 'photo-camera.png', { type: 'image/png' })
   file.value = capturedFile
   fileName.value = capturedFile.name
-  previewUrl.value = URL.createObjectURL(capturedFile)
+  capturedPhotoUrl.value = URL.createObjectURL(capturedFile)
+  previewUrl.value = capturedPhotoUrl.value
   success.value = false
   stopCamera()
 }
